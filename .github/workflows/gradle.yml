@@ -48,8 +48,8 @@ jobs:
 
   release:
 
-    # Solo al subir una etiqueta v*. 
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Solo en los push a main (no en los pull request).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
