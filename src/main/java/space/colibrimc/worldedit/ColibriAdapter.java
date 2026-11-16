@@ -181,7 +181,11 @@ public final class ColibriAdapter implements BukkitImplAdapter {
 
         private static final java.util.Set<Chunk> DIRTY = java.util.concurrent.ConcurrentHashMap.newKeySet();
         private static final java.util.concurrent.atomic.AtomicBoolean SCHEDULED = new java.util.concurrent.atomic.AtomicBoolean();
+        /** Aunque WorldEdit no pare, se reenvia lo cambiado cada tanto: asi el pegado se ve avanzar y no llega todo de golpe al final. */
+        private static final long MAX_WAIT_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
+
         private static volatile long lastWrite;
+        private static volatile long lastFlush = System.nanoTime();
         private static final java.util.concurrent.ScheduledExecutorService TIMER = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(task -> {
             Thread thread = new Thread(task, "ColibriWorldEdit-resend");
             thread.setDaemon(true);
@@ -195,11 +199,13 @@ public final class ColibriAdapter implements BukkitImplAdapter {
         }
 
         private static void check() {
-            long quiet = System.nanoTime() - lastWrite;
-            if (quiet < QUIET_NANOS) {
+            long now = System.nanoTime();
+            long quiet = now - lastWrite;
+            if (quiet < QUIET_NANOS && now - lastFlush < MAX_WAIT_NANOS) {
                 TIMER.schedule(Resender::check, QUIET_NANOS - quiet, java.util.concurrent.TimeUnit.NANOSECONDS);
                 return;
             }
+            lastFlush = now;
             SCHEDULED.set(false);
             for (java.util.Iterator<Chunk> it = DIRTY.iterator(); it.hasNext(); ) {
                 Chunk chunk = it.next();
@@ -211,7 +217,7 @@ public final class ColibriAdapter implements BukkitImplAdapter {
                     // Un chunk descargado entre medias: no hay a quien reenviarlo.
                 }
             }
-            // Una escritura que llego mientras se vaciaba: se vuelve a mirar.
+            // Una escritura que llego mientras se vaciaba, o que sigue llegando: se vuelve a mirar.
             if (!DIRTY.isEmpty() && SCHEDULED.compareAndSet(false, true)) TIMER.schedule(Resender::check, 150, java.util.concurrent.TimeUnit.MILLISECONDS);
         }
     }
