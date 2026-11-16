@@ -1,0 +1,30 @@
+name: Release
+
+# Al subir una etiqueta (por ejemplo `v1.0.1`) se compila y se publica una release con los .jar y sus .sha1.
+# ColibriMC descarga siempre la ultima release, asi que un parche llega a los servidores al reiniciar.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - run: ./gradlew jar --no-daemon
+      - name: Checksums
+        run: |
+          cd build/libs
+          for f in *.jar; do sha1sum "$f" | cut -d' ' -f1 > "$f.sha1"; done
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/libs/*.jar
+            build/libs/*.jar.sha1
