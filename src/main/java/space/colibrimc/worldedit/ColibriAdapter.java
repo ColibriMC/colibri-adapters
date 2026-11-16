@@ -89,7 +89,7 @@ public final class ColibriAdapter implements BukkitImplAdapter {
             if (property == null) continue;
             try {
                 state = state.with(property, property.getValueFor(entry.getValue()));
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException unloaded) {
                 // Un valor que WorldEdit no conoce: se queda el de por defecto.
             }
         }
@@ -135,6 +135,53 @@ public final class ColibriAdapter implements BukkitImplAdapter {
         return new Access(instance(world));
     }
 
+    /**
+     * Reenvia a los jugadores los chunks que WorldEdit ha cambiado, una sola vez por chunk y cuando deja de escribir.
+     *
+     * Reenviar el chunk entero tarda mucho menos que un paquete por bloque: una schematic de 22 millones de bloques
+     * son unos cientos de chunks.
+     */
+    private static final class Resender {
+        /** Lo que tarda en considerarse que WorldEdit ha terminado: sin escrituras durante este tiempo. */
+        private static final long QUIET_NANOS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(150);
+
+        private static final java.util.Set<Chunk> DIRTY = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        private static final java.util.concurrent.atomic.AtomicBoolean SCHEDULED = new java.util.concurrent.atomic.AtomicBoolean();
+        private static volatile long lastWrite;
+        private static final java.util.concurrent.ScheduledExecutorService TIMER = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(task -> {
+            Thread thread = new Thread(task, "ColibriWorldEdit-resend");
+            thread.setDaemon(true);
+            return thread;
+        });
+
+        static void touched(Chunk chunk) {
+            DIRTY.add(chunk);
+            lastWrite = System.nanoTime();
+            if (SCHEDULED.compareAndSet(false, true)) TIMER.schedule(Resender::check, 150, java.util.concurrent.TimeUnit.MILLISECONDS);
+        }
+
+        private static void check() {
+            long quiet = System.nanoTime() - lastWrite;
+            if (quiet < QUIET_NANOS) {
+                TIMER.schedule(Resender::check, QUIET_NANOS - quiet, java.util.concurrent.TimeUnit.NANOSECONDS);
+                return;
+            }
+            SCHEDULED.set(false);
+            for (java.util.Iterator<Chunk> it = DIRTY.iterator(); it.hasNext(); ) {
+                Chunk chunk = it.next();
+                it.remove();
+                try {
+                    chunk.invalidate();
+                    chunk.sendChunk();
+                } catch (RuntimeException unloaded) {
+                    // Un chunk descargado entre medias: no hay a quien reenviarlo.
+                }
+            }
+            // Una escritura que llego mientras se vaciaba: se vuelve a mirar.
+            if (!DIRTY.isEmpty() && SCHEDULED.compareAndSet(false, true)) TIMER.schedule(Resender::check, 150, java.util.concurrent.TimeUnit.MILLISECONDS);
+        }
+    }
+
     /** Leer y escribir bloques del mundo para WorldEdit: chunk = `Chunk`, bloque = `Block`, posicion = `BlockVec`. */
     private static final class Access implements WorldNativeAccess<Chunk, Block, BlockVec> {
         private final Instance instance;
@@ -162,7 +209,16 @@ public final class ColibriAdapter implements BukkitImplAdapter {
         @Override
         public Block setBlockState(Chunk chunk, BlockVec position, Block state) {
             Block old = instance.getBlock(position);
-            instance.setBlock(position, state);
+            // Directo al chunk: `instance.setBlock` manda un paquete por bloque a todos los que miran, y pegar una
+            // schematic grande son millones (el cliente se ahoga y el servidor lo echa por exceso de paquetes).
+            // Se apunta el chunk y se reenvia una sola vez cuando WorldEdit termina de escribir.
+            chunk.lockWriteLock();
+            try {
+                chunk.setBlock(position.blockX(), position.blockY(), position.blockZ(), state);
+            } finally {
+                chunk.unlockWriteLock();
+            }
+            Resender.touched(chunk);
             return old;
         }
 
