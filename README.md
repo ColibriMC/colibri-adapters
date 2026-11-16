@@ -19,7 +19,7 @@ contenido de cofres y carteles (NBT de bloques), no regenera chunks, arboles ni 
 git tag v1.0.1 && git push origin v1.0.1
 ```
 
-El workflow compila y crea la release con `ColibriWorldEditAdapter.jar` y `ColibriWorldEditAdapter.jar.sha1`.
+El workflow (`.github/workflows/gradle.yml`) compila y crea la release con `ColibriWorldEditAdapter.jar` y `ColibriWorldEditAdapter.jar.sha1`.
 Para hacerlo a mano: `./gradlew jar`, y subir `build/libs/ColibriWorldEditAdapter.jar` y un `.sha1` con solo su suma
 (`sha1sum ColibriWorldEditAdapter.jar | cut -d' ' -f1 > ColibriWorldEditAdapter.jar.sha1`).
 
