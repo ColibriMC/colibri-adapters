@@ -1,11 +1,11 @@
-# Compila en cada push y pull request a main. Al subir una etiqueta `v*` (por ejemplo v1.0.1) publica ademas una
-# release con los .jar y sus .sha1: ColibriMC descarga siempre la ultima, asi un parche llega a los servidores al reiniciar.
+# Compila en cada push y pull request a main. Cada push a main que compila bien publica ademas una release nueva
+# (etiqueta v1.0.<n>, creada aqui) con los .jar y sus .sha1: ColibriMC descarga siempre la ultima, asi un parche llega a
+# los servidores al reiniciar sin tocar etiquetas a mano.
 name: Java CI with Gradle
 
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
 
@@ -64,4 +64,8 @@ jobs:
     - name: Publish the release
       uses: softprops/action-gh-release@v2
       with:
+        tag_name: v1.0.${{ github.run_number }}
+        target_commitish: ${{ github.sha }}
+        name: ColibriMC adapters v1.0.${{ github.run_number }}
+        make_latest: true
         files: release/*

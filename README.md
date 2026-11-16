@@ -15,11 +15,10 @@ contenido de cofres y carteles (NBT de bloques), no regenera chunks, arboles ni 
 
 ## Publicar una version
 
-```bash
-git tag v1.0.1 && git push origin v1.0.1
-```
+Se publica sola: cada push a `main` que compile bien crea una release nueva (`v1.0.<n>`) con
+`ColibriWorldEditAdapter.jar` y `ColibriWorldEditAdapter.jar.sha1` (`.github/workflows/gradle.yml`). ColibriMC descarga
+siempre la ultima, asi que un parche llega a los servidores al reiniciar.
 
-El workflow (`.github/workflows/gradle.yml`) compila y crea la release con `ColibriWorldEditAdapter.jar` y `ColibriWorldEditAdapter.jar.sha1`.
 Para hacerlo a mano: `./gradlew jar`, y subir `build/libs/ColibriWorldEditAdapter.jar` y un `.sha1` con solo su suma
 (`sha1sum ColibriWorldEditAdapter.jar | cut -d' ' -f1 > ColibriWorldEditAdapter.jar.sha1`).
 
