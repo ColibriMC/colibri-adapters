@@ -80,13 +80,34 @@ public final class ColibriAdapter implements BukkitImplAdapter {
         return instance.getBlock(x, y, z);
     }
 
+    /** El metodo `instance()` de cada clase de mundo, buscado una sola vez: se llama por cada bloque que lee WorldEdit. */
+    private static final ClassValue<java.lang.invoke.MethodHandle> INSTANCE_OF = new ClassValue<>() {
+        @Override
+        protected java.lang.invoke.MethodHandle computeValue(Class<?> type) {
+            try {
+                return java.lang.invoke.MethodHandles.publicLookup()
+                        .unreflect(type.getMethod("instance"))
+                        .asType(java.lang.invoke.MethodType.methodType(Object.class, Object.class));
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalArgumentException("Unsupported world (not a ColibriMC world): " + type.getName(), e);
+            }
+        }
+    };
+
     private static Instance instance(World world) {
         try {
-            java.lang.reflect.Method method = world.getClass().getMethod("instance");
-            return (Instance) method.invoke(world);
-        } catch (ReflectiveOperationException | ClassCastException e) {
+            return (Instance) (Object) INSTANCE_OF.get(world.getClass()).invokeExact((Object) world);
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable e) {
             throw new IllegalArgumentException("Unsupported world (not a ColibriMC world): " + world, e);
         }
+    }
+
+    /** Sin contenido de contenedores que vaciar (no hay NBT de bloques): evita la excepcion por defecto, que saltaba por cada bloque. */
+    @Override
+    public boolean clearContainerBlockContents(World world, BlockVector3 position) {
+        return false;
     }
 
     // ─── Bloques: WorldEdit <-> Minestom ────────────────────────────────
