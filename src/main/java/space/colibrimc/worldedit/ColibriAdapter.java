@@ -67,6 +67,19 @@ public final class ColibriAdapter implements BukkitImplAdapter {
      * Se pide por reflexion (`instance()`) para que este modulo no dependa de las clases internas de ColibriMC y
      * se pueda compilar solo, en un repositorio publico.
      */
+    /**
+     * El bloque de esa posicion, cargando el chunk si hace falta.
+     *
+     * WorldEdit lee antes de escribir (para poder deshacer) y puede tocar zonas que nadie ha cargado: `Instance.getBlock`
+     * lanza una excepcion si el chunk no esta cargado.
+     */
+    static Block blockAt(Instance instance, int x, int y, int z) {
+        int chunkX = net.minestom.server.coordinate.CoordConversion.globalToChunk(x);
+        int chunkZ = net.minestom.server.coordinate.CoordConversion.globalToChunk(z);
+        if (instance.getChunk(chunkX, chunkZ) == null) instance.loadChunk(chunkX, chunkZ).join();
+        return instance.getBlock(x, y, z);
+    }
+
     private static Instance instance(World world) {
         try {
             java.lang.reflect.Method method = world.getClass().getMethod("instance");
@@ -122,7 +135,7 @@ public final class ColibriAdapter implements BukkitImplAdapter {
 
     @Override
     public BlockState getBlock(Location location) {
-        return toWorldEdit(instance(location.getWorld()).getBlock(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+        return toWorldEdit(blockAt(instance(location.getWorld()), location.getBlockX(), location.getBlockY(), location.getBlockZ()));
     }
 
     @Override
@@ -203,7 +216,7 @@ public final class ColibriAdapter implements BukkitImplAdapter {
 
         @Override
         public Block getBlockState(Chunk chunk, BlockVec position) {
-            return instance.getBlock(position);
+            return blockAt(instance, position.blockX(), position.blockY(), position.blockZ());
         }
 
         @Override
