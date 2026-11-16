@@ -249,6 +249,9 @@ public final class ColibriAdapter implements BukkitImplAdapter {
         @Override
         public Block setBlockState(Chunk chunk, BlockVec position, Block state) {
             Block old = instance.getBlock(position);
+            // Escribir lo que ya hay (aire sobre aire en un pegado sin -a, por ejemplo) no cambia nada: ni se toca el
+            // chunk, ni se bloquea, ni se reenvia luego a los jugadores.
+            if (old.equals(state)) return old;
             // Directo al chunk: `instance.setBlock` manda un paquete por bloque a todos los que miran, y pegar una
             // schematic grande son millones (el cliente se ahoga y el servidor lo echa por exceso de paquetes).
             // Se apunta el chunk y se reenvia una sola vez cuando WorldEdit termina de escribir.
